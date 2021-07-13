@@ -19,7 +19,14 @@ def format_date(d):
 @bp.route("/search/<field>/<value>")
 def search(field, value):
     # TBD
-    return ""
+    conn = db.get_db()
+    cursor = conn.cursor()
+    cursor.execute('select id from tag where tag.name=?', [value])
+    tag = cursor.fetchone()[0]
+    cursor.execute("select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id and p.id in (select pet from tags_pets where tag=?)", [tag])
+    pets = cursor.fetchall()
+    print(len(pets))
+    return render_template('index.html', pets = pets, order='asc', field = field)
 
 @bp.route("/")
 def dashboard():
@@ -28,9 +35,9 @@ def dashboard():
     oby = request.args.get("order_by", "id") # TODO. This is currently not used. 
     order = request.args.get("order", "asc")
     if order == "asc":
-        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.id")
+        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.{oby}")
     else:
-        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.id desc")
+        cursor.execute(f"select p.id, p.name, p.bought, p.sold, s.name from pet p, animal s where p.species = s.id order by p.{oby} desc")
     pets = cursor.fetchall()
     return render_template('index.html', pets = pets, order="desc" if order=="asc" else "asc")
 
@@ -74,7 +81,13 @@ def edit(pid):
     elif request.method == "POST":
         description = request.form.get('description')
         sold = request.form.get("sold")
+        cursor.execute("update pet set description=? where id = ?",[description, pid])
+        conn.commit()
         # TODO Handle sold
+        if sold:
+            sold = datetime.date.today()
+            cursor.execute("update pet set sold = ? where id = ?", [sold, pid])
+            conn.commit()
         return redirect(url_for("pets.pet_info", pid=pid), 302)
         
     
